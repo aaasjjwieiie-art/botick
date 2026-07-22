@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import os
 from uuid import uuid4
+from aiohttp import web
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram import Bot, Dispatcher, F
@@ -205,7 +207,6 @@ async def handle_inline(inline_query: InlineQuery):
 
         initial_text = action["initial"].format(sender=sender_name, clicker="")
 
-        # Клавиатура при отправке запроса (Принять / Отказаться + Кнопка ответа)
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="✅ Принять", callback_data=f"act:{token}:accept"),
@@ -257,7 +258,6 @@ async def handle_action_callback(callback: CallbackQuery):
     template = action["accept"] if decision == "accept" else action["decline"]
     final_text = template.format(sender=sender_name, clicker=clicker_name)
 
-    # Оставляем кнопку "Ответить действием" и после нажатия на Принять/Отказаться
     finish_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🔄 Ответить действием", switch_inline_query="")
@@ -273,7 +273,21 @@ async def handle_action_callback(callback: CallbackQuery):
     pending_actions.pop(token, None)
 
 
+async def handle_ping(request):
+    return web.Response(text="Бот работает!")
+
+
 async def main():
+    # Запускаем фейковый веб-сервер для Render
+    app = web.Application()
+    app.router.add_get('/', handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
